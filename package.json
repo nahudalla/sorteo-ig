@@ -1,0 +1,14 @@
+{
+  "name": "sorteo-ig",
+  "version": "1.0.0",
+  "description": "Sorteos de Instagram corriendo en local",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
