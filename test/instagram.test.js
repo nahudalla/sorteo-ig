@@ -42,13 +42,6 @@ before(async () => {
       res.writeHead(200, { 'Content-Type': 'text/html' });
       return res.end('<html><title>Instagram</title></html>');
     }
-    if (url.pathname === '/graphql/query/' && url.searchParams.get('query_hash') === 'd5d763b1e2acf209d62d22d184488e57') {
-      const vars = JSON.parse(url.searchParams.get('variables'));
-      const edge = vars.after
-        ? { count: 2, page_info: { has_next_page: false }, edges: [{ node: { username: 'Beto' } }] }
-        : { count: 2, page_info: { has_next_page: true, end_cursor: 'l2' }, edges: [{ node: { username: 'ana' } }] };
-      return json(200, { data: { shortcode_media: { edge_liked_by: edge } } });
-    }
     if (url.pathname === '/graphql/query/') {
       const vars = JSON.parse(url.searchParams.get('variables'));
       const node = (id, username, text, extra = {}) => ({ id, text, created_at: Number(id), owner: { username }, ...extra });
@@ -109,9 +102,9 @@ test('info del post, likes y seguidores', async () => {
   assert.equal(await client().follows('beto', 'tienda'), false);
 });
 
-test('likes: si la web da 403 usa i.instagram.com, y si no, GraphQL', async () => {
+test('likes: si la web da 403 usa i.instagram.com; si ambos fallan, error (confirmación manual)', async () => {
   assert.deepEqual(await client().likers('99'), { usernames: ['ana'], total: 1 });
-  assert.deepEqual(await client().likers('98'), { usernames: ['ana', 'beto'], total: 2 });
+  await assert.rejects(client().likers('98'), /403/);
 });
 
 test('seguir: relación directa si es la cuenta conectada, si no lista de seguidores', async () => {
