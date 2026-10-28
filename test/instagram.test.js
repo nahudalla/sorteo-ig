@@ -22,7 +22,8 @@ before(async () => {
     };
     if (!/sessionid=(ok|limitada)/.test(req.headers.cookie ?? '')) return json(401, { status: 'fail', message: 'login_required' });
     if (url.pathname === '/api/v1/media/99/comments/') {
-      if (url.searchParams.has('can_support_threading')) {
+      // Como pasa hoy: la web devuelve el HTML de la página; sólo i.instagram.com responde JSON.
+      if (req.headers['sec-fetch-site'] === 'same-origin') {
         res.writeHead(200, { 'Content-Type': 'text/html' });
         return res.end('<html><title>Instagram</title></html>');
       }
@@ -36,6 +37,22 @@ before(async () => {
       return url.searchParams.get('max_id')
         ? json(200, { child_comments: [comment(5, 'eli', 'comic @e')] })
         : json(200, { child_comments: [comment(4, 'dani', 'manga @d')], has_more_tail_child_comments: true, next_max_child_cursor: 'c2' });
+    }
+    if (url.pathname === '/api/v1/media/98/comments/') {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      return res.end('<html><title>Instagram</title></html>');
+    }
+    if (url.pathname === '/graphql/query/') {
+      const vars = JSON.parse(url.searchParams.get('variables'));
+      const node = (id, username, text, extra = {}) => ({ id, text, created_at: Number(id), owner: { username }, ...extra });
+      const media = vars.after
+        ? { count: 3, page_info: { has_next_page: false }, edges: [{ node: node('3', 'caro', 'comic @c') }] }
+        : {
+            count: 3,
+            page_info: { has_next_page: true, end_cursor: 'g2' },
+            edges: [{ node: node('1', 'ana', 'comic @a', { edge_threaded_comments: { count: 1, edges: [{ node: node('2', 'beto', 'manga @b') }] } }) }],
+          };
+      return json(200, { data: { shortcode_media: { edge_media_to_parent_comment: media } } });
     }
     if (url.pathname === '/api/v1/media/99/info/') {
       return json(200, { items: [{ pk: 99, code: 'X', user: { pk: 1, username: 'tienda' }, comment_count: 5, like_count: 3 }] });
@@ -58,7 +75,7 @@ before(async () => {
 
 after(() => server.close());
 
-const client = (sessionid = 'ok') => new InstagramClient({ sessionid }, { baseUrl, throttle: 0 });
+const client = (sessionid = 'ok') => new InstagramClient({ sessionid }, { baseUrl, apiBaseUrl: baseUrl, throttle: 0 });
 
 test('trae todos los comentarios paginando, con reintento y respuestas', async () => {
   const progress = [];
@@ -77,7 +94,12 @@ test('info del post, likes y seguidores', async () => {
 });
 
 test('una respuesta no JSON explica qué devolvió Instagram', async () => {
-  await assert.rejects(client().request('/api/v1/media/99/comments/?can_support_threading=true'), /HTTP 200, text\/html\): Instagram/);
+  await assert.rejects(client().request('/api/v1/media/98/comments/'), /HTTP 200, text\/html\): Instagram/);
+});
+
+test('si la API REST no responde, usa GraphQL', async () => {
+  const comments = await client().allComments('98');
+  assert.deepEqual(comments.map((c) => [c.username, c.isReply]), [['ana', false], ['beto', true], ['caro', false]]);
 });
 
 test('sesión inválida da un error claro', async () => {
