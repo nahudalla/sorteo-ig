@@ -48,11 +48,12 @@ async function loadSession() {
   }
   if (!cookies) return;
   try {
-    const client = new InstagramClient(cookies);
-    session = { cookies, user: await client.currentUser() };
+    const ig = new InstagramClient(cookies);
+    ig.me = await ig.currentUser();
+    session = { cookies, user: ig.me, client: ig };
     console.log(`  Sesión de Instagram: ${session.user.username ? `@${session.user.username}` : `cuenta ${session.user.id} (sin verificar)`}`);
   } catch (err) {
-    session = { cookies, user: null };
+    session = { cookies, user: null, client: new InstagramClient(cookies) };
     console.log(`  No se pudo validar la sesión guardada: ${err.message}`);
   }
 }
@@ -61,7 +62,9 @@ function client() {
   if (!session?.cookies) {
     throw new InstagramError('Conectá tu cuenta de Instagram para traer los comentarios.', 401);
   }
-  return new InstagramClient(session.cookies);
+  // Un cliente por sesión, para reutilizar lo ya consultado (ids de cuentas, likes del post).
+  session.client ??= new InstagramClient(session.cookies);
+  return session.client;
 }
 
 function sendJson(res, status, data) {
@@ -86,8 +89,10 @@ const routes = {
     const cookies = parseCookieInput(body.cookie);
     if (!cookies) throw new InstagramError('No encontré la cookie "sessionid" en lo que pegaste.', 400);
     console.log(`Validando sesión de Instagram (usuario ${cookies.ds_user_id ?? 'desconocido'})…`);
-    const user = await new InstagramClient(cookies).currentUser();
-    session = { cookies, user };
+    const ig = new InstagramClient(cookies);
+    const user = await ig.currentUser();
+    ig.me = user;
+    session = { cookies, user, client: ig };
     await writeFile(SESSION_FILE, JSON.stringify({ cookies }, null, 2), { mode: 0o600 });
     return { connected: true, user };
   },
@@ -107,7 +112,7 @@ const routes = {
   'POST /api/likers': async (body) => client().likers(String(body.mediaId)),
 
   'POST /api/follows': async (body) => ({
-    follows: await client().follows(String(body.username), String(body.account)),
+    follows: await client().follows(String(body.username), String(body.account), String(body.userId ?? '')),
   }),
 };
 

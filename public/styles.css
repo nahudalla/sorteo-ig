@@ -249,3 +249,4 @@ td.reason-cell { color: var(--bad); white-space: nowrap; }
   .url-form { flex-wrap: wrap; }
   .url-form .btn { width: 100%; }
 }
+.pick-comment + .pick-comment { margin-top: 6px; }

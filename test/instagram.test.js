@@ -42,6 +42,13 @@ before(async () => {
       res.writeHead(200, { 'Content-Type': 'text/html' });
       return res.end('<html><title>Instagram</title></html>');
     }
+    if (url.pathname === '/graphql/query/' && url.searchParams.get('query_hash') === 'd5d763b1e2acf209d62d22d184488e57') {
+      const vars = JSON.parse(url.searchParams.get('variables'));
+      const edge = vars.after
+        ? { count: 2, page_info: { has_next_page: false }, edges: [{ node: { username: 'Beto' } }] }
+        : { count: 2, page_info: { has_next_page: true, end_cursor: 'l2' }, edges: [{ node: { username: 'ana' } }] };
+      return json(200, { data: { shortcode_media: { edge_liked_by: edge } } });
+    }
     if (url.pathname === '/graphql/query/') {
       const vars = JSON.parse(url.searchParams.get('variables'));
       const node = (id, username, text, extra = {}) => ({ id, text, created_at: Number(id), owner: { username }, ...extra });
@@ -61,8 +68,17 @@ before(async () => {
       if (req.headers.cookie.includes('limitada')) return json(429, { status: 'fail', message: 'Please wait a few minutes' });
       return json(200, { form_data: { username: 'tienda', first_name: 'Tienda' } });
     }
-    if (url.pathname === '/api/v1/media/99/likers/') return json(200, { users: [{ username: 'Ana' }], user_count: 1 });
-    if (url.pathname === '/api/v1/users/web_profile_info/') return json(200, { data: { user: { id: '1' } } });
+    // Como pasa hoy: likers da 403 en la web y web_profile_info da 429.
+    const web = req.headers['sec-fetch-site'] === 'same-origin';
+    if (url.pathname === '/api/v1/media/99/likers/') {
+      return web ? json(403, { status: 'fail', message: 'forbidden' }) : json(200, { users: [{ username: 'Ana' }], user_count: 1 });
+    }
+    if (url.pathname === '/api/v1/media/98/likers/') return json(403, { status: 'fail', message: 'forbidden' });
+    if (url.pathname === '/api/v1/users/web_profile_info/') return json(429, { status: 'fail', message: 'wait' });
+    if (url.pathname === '/api/v1/users/tienda/usernameinfo/') return json(200, { user: { pk: 1 } });
+    if (url.pathname.startsWith('/api/v1/friendships/show/')) {
+      return json(200, { followed_by: url.pathname.includes('/111/'), following: false });
+    }
     if (url.pathname === '/api/v1/friendships/1/followers/') {
       const q = url.searchParams.get('query');
       return json(200, { users: q === 'ana' ? [{ username: 'ana' }] : [{ username: `${q}_fake` }] });
@@ -91,6 +107,20 @@ test('info del post, likes y seguidores', async () => {
   assert.deepEqual((await client().likers('99')).usernames, ['ana']);
   assert.equal(await client().follows('ana', 'tienda'), true);
   assert.equal(await client().follows('beto', 'tienda'), false);
+});
+
+test('likes: si la web da 403 usa i.instagram.com, y si no, GraphQL', async () => {
+  assert.deepEqual(await client().likers('99'), { usernames: ['ana'], total: 1 });
+  assert.deepEqual(await client().likers('98'), { usernames: ['ana', 'beto'], total: 2 });
+});
+
+test('seguir: relación directa si es la cuenta conectada, si no lista de seguidores', async () => {
+  const ig = client();
+  ig.me = { username: 'Tienda' };
+  assert.equal(await ig.follows('ana', 'tienda', '111'), true);
+  assert.equal(await ig.follows('beto', 'tienda', '222'), false);
+  // otra cuenta (o sin id del usuario): web_profile_info limitado -> usernameinfo -> seguidores
+  assert.equal(await client().follows('ana', 'tienda'), true);
 });
 
 test('una respuesta no JSON explica qué devolvió Instagram', async () => {

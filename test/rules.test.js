@@ -49,22 +49,33 @@ test('comentarios repetidos no cuentan', () => {
   assert.equal(result.rejected[0].reason, 'Comentario repetido');
 });
 
-test('varios comentarios cuentan sólo si etiquetan gente diferente (estricto)', () => {
+test('las menciones se suman entre comentarios del mismo usuario', () => {
+  const comments = [c('ana', 'comic @a'), c('ana', 'comic @b'), c('beto', 'comic @x')];
+  const result = buildEntries(comments, draw('comic'), config({ minMentions: 2 }));
+  assert.equal(result.entries.length, 1);
+  assert.deepEqual(result.entries[0].mentions, ['a', 'b']);
+  assert.deepEqual(result.entries[0].comments, ['comic @a', 'comic @b']);
+  assert.equal(result.rejected.length, 1);
+  assert.equal(result.rejected[0].comment.username, 'beto');
+});
+
+test('cada vez que junta el mínimo de gente nueva suma otra chance', () => {
   const comments = [
-    c('ana', 'comic @a @b'),
-    c('ana', 'comic @c @d'), // nuevas: cuenta
-    c('ana', 'comic @a @e'), // sólo @e es nueva, mínimo 2: no cuenta
-    c('ana', 'comic @b @a!'), // mismas personas: no cuenta
-    c('ana', 'comic @e @f'), // nuevas: cuenta
+    c('ana', 'comic @a @b'), // chance 1
+    c('ana', 'comic @c @d'), // chance 2
+    c('ana', 'comic @a @e'), // sólo @e es nueva: queda pendiente
+    c('ana', 'comic @b @a!'), // nadie nuevo: no cuenta
+    c('ana', 'comic @e @f'), // @f + @e pendiente: chance 3
   ];
   const result = buildEntries(comments, draw('comic'), config({ minMentions: 2 }));
   assert.equal(result.entries.length, 3);
-  assert.equal(result.rejected.length, 2);
+  assert.deepEqual(result.entries[2].mentions, ['e', 'f']);
+  assert.equal(result.rejected.length, 1);
 });
 
-test('modo combinación: alcanza con una combinación distinta', () => {
-  const comments = [c('ana', 'comic @a @b'), c('ana', 'comic @a @c'), c('ana', 'comic @b @a hola')];
-  const result = buildEntries(comments, draw('comic'), config({ minMentions: 2, mentionUniqueness: 'combo' }));
+test('con mínimo 0, los comentarios extra necesitan alguien nuevo', () => {
+  const comments = [c('ana', 'comic'), c('ana', 'comic!'), c('ana', 'comic @x')];
+  const result = buildEntries(comments, draw('comic'), config({ minMentions: 0 }));
   assert.equal(result.entries.length, 2);
 });
 

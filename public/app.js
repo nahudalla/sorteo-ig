@@ -298,16 +298,10 @@ function viewRules() {
 
       <div class="section">
         <div class="section-title"><span class="ico">👥</span>Menciones</div>
-        <p class="hint">Cantidad mínima de cuentas etiquetadas en cada comentario. No cuenta etiquetarse a uno mismo ni a la cuenta organizadora.</p>
+        <p class="hint">Cantidad mínima de personas distintas que cada usuario tiene que etiquetar. Se suman entre todos sus comentarios: con mínimo 2, dos comentarios con una persona distinta cada uno ya cuentan. No vale etiquetarse a uno mismo ni a la cuenta organizadora.</p>
         ${stepper('minMentions', 0, 20)}
         <div style="margin-top:10px">
-          ${toggle('multipleEntries', 'Permitir varias participaciones por usuario', 'Cada comentario válido suma una chance, pero sólo si etiqueta gente diferente.')}
-          <div class="sub-options" ${c.multipleEntries ? '' : 'hidden'} id="uniq-options">
-            <label class="radio"><input type="radio" name="uniq" data-bind="mentionUniqueness" value="strict" ${c.mentionUniqueness === 'strict' ? 'checked' : ''}>
-              <span><b>Personas nuevas:</b> sólo cuentan las personas que todavía no había etiquetado (tienen que alcanzar el mínimo).</span></label>
-            <label class="radio"><input type="radio" name="uniq" data-bind="mentionUniqueness" value="combo" ${c.mentionUniqueness === 'combo' ? 'checked' : ''}>
-              <span><b>Combinación distinta:</b> alcanza con que el grupo etiquetado no sea exactamente el mismo.</span></label>
-          </div>
+          ${toggle('multipleEntries', 'Permitir varias participaciones por usuario', 'Cada vez que vuelve a juntar el mínimo de personas nuevas (que no había etiquetado antes) suma otra chance, como máximo una por comentario.')}
         </div>
       </div>
 
@@ -415,11 +409,12 @@ function pickCard(pick, dsIndex, pickIndex) {
         <div class="pick-user"><a href="${profileUrl(e.displayUsername || e.username)}" target="_blank" rel="noopener">@${esc(e.displayUsername || e.username)}</a></div>
       </div>
     </div>
-    <div class="pick-comment">${esc(e.text)}</div>
+    ${(e.comments?.length ? e.comments : [e.text]).map((t) => `<div class="pick-comment">${esc(t)}</div>`).join('')}
     ${pick.checks.length ? `<div class="checks">${pick.checks.map(checkBadge).join('')}</div>` : ''}
     ${pick.reason ? `<div class="reason">${esc(pick.reason)}</div>` : ''}
     ${pick.status === 'manual' ? `
-      <div class="manual">No se pudo verificar automáticamente. Revisá el <a href="${profileUrl(e.username)}" target="_blank" rel="noopener">perfil</a> y confirmá si cumple.
+      <div class="manual">No se pudo verificar automáticamente${
+        pick.checks.some((c) => c.error) ? ` (${esc(pick.checks.find((c) => c.error).error)})` : ''}. Revisá el <a href="${profileUrl(e.username)}" target="_blank" rel="noopener">perfil</a> y confirmá si cumple.
         <div class="row">
           <button class="btn btn-dark btn-sm" data-action="manual-ok" data-ds="${dsIndex}" data-pick="${pickIndex}">✓ Cumple</button>
           <button class="btn btn-ghost btn-sm" data-action="manual-fail" data-ds="${dsIndex}" data-pick="${pickIndex}">✕ No cumple</button>
@@ -456,17 +451,16 @@ function viewDraw() {
     <h1>🎲 Sorteo en vivo</h1>
     <div class="actions" style="margin:0">
       <button class="btn btn-ghost btn-sm" data-action="to-rules">← Reglas</button>
-      <button class="btn btn-ghost btn-sm" data-action="open-participants">Participantes</button>
       <button class="btn btn-dark btn-sm" data-action="to-results">Resultados</button>
     </div>
   </div>
   ${state.drawStates.length > 1 ? `<div class="draw-tabs">${state.drawStates.map((d, i) => `
     <button class="draw-tab ${i === state.activeDraw ? 'on' : ''}" data-action="select-draw" data-index="${i}">
-      ${nextRole(d) ? '' : '✓ '}${esc(d.draw.prize)} <span class="count">${fmt(d.result.users.size)}</span></button>`).join('')}</div>` : ''}
+      ${nextRole(d) ? '' : '✓ '}${esc(d.draw.prize)}</button>`).join('')}</div>` : ''}
   <div class="card stage" id="stage">
     <div class="prize-name">🏆 ${esc(ds.draw.prize)}</div>
     <h2>${ds.draw.keywords.length ? `Comentaron “${esc(ds.draw.keywords[0])}”` : 'Todos los comentarios'}</h2>
-    <div class="meta">${fmt(ds.result.users.size)} participantes · ${fmt(ds.result.entries.length)} chances · ${ds.draw.winners} ganador${ds.draw.winners > 1 ? 'es' : ''} y ${ds.draw.alternates} suplente${ds.draw.alternates === 1 ? '' : 's'}</div>
+    <div class="meta">${ds.draw.winners} ganador${ds.draw.winners > 1 ? 'es' : ''} y ${ds.draw.alternates} suplente${ds.draw.alternates === 1 ? '' : 's'}</div>
     <div class="roller" id="roller"><span class="roller-name">${last ? `@${esc(last.entry.displayUsername || last.entry.username)}` : '<span class="placeholder">¿Quién será? 🤞</span>'}</span></div>
     <div id="stage-button">${stageButton(ds, state.activeDraw)}</div>
   </div>
@@ -520,7 +514,7 @@ async function runDraw(dsIndex) {
   refreshDrawParts(dsIndex);
 
   for (const check of pick.checks) {
-    check.status = await runCheck(check, entry.username);
+    check.status = await runCheck(check, entry);
     refreshDrawParts(dsIndex);
   }
 
@@ -547,7 +541,8 @@ function validate(pick, dsIndex) {
   if (pick.role === 'winner') burst();
 }
 
-async function runCheck(check, username) {
+async function runCheck(check, entry) {
+  const { username } = entry;
   if (state.source === 'demo') {
     const set = check.type === 'like' ? state.demoChecks.like : state.demoChecks.follow;
     await sleep(500);
@@ -556,7 +551,10 @@ async function runCheck(check, username) {
   if (state.source !== 'instagram' || !state.session.connected) return 'unknown';
   try {
     if (check.type === 'follow') {
-      const { follows } = await api('/api/follows', { method: 'POST', body: { username, account: check.account } });
+      const { follows } = await api('/api/follows', {
+        method: 'POST',
+        body: { username, userId: entry.userId, account: check.account },
+      });
       return follows ? 'ok' : 'fail';
     }
     if (!state.likers) {
@@ -568,6 +566,7 @@ async function runCheck(check, username) {
     return state.likers.set.size >= state.likers.total ? 'fail' : 'unknown';
   } catch (err) {
     console.warn(err);
+    check.error = err.message;
     return 'unknown';
   }
 }
@@ -991,7 +990,6 @@ document.addEventListener('input', (ev) => {
   else if (el.type === 'number') value = Number(el.value);
   setPath(state.config, path, value);
   saveConfig();
-  if (path === 'multipleEntries') $('#uniq-options').hidden = !value;
   if (path === 'requireFollow') $('#follow-field').hidden = !value;
   updatePreview();
 });

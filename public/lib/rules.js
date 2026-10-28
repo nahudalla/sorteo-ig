@@ -65,7 +65,6 @@ export const DEFAULT_CONFIG = {
   single: { keywords: '', prize: 'Premio', winners: 1, alternates: 2 },
   minMentions: 1,
   multipleEntries: true,
-  mentionUniqueness: 'strict', // 'strict': ninguna persona repetida · 'combo': combinación distinta
   ignoreDuplicates: true,
   includeReplies: false,
   excludeOwner: true,
@@ -107,10 +106,11 @@ export function parseUserList(input) {
  * Reglas:
  * - Sólo cuentan comentarios que contienen alguna de las palabras del sorteo.
  * - Un comentario con el mismo texto que otro anterior del mismo usuario no cuenta.
- * - Cada comentario válido necesita al menos `minMentions` menciones.
- * - Si se permiten varias participaciones, los comentarios extra sólo cuentan si etiquetan
- *   gente diferente: en modo 'strict' cuentan sólo las personas que el usuario todavía no
- *   había etiquetado; en modo 'combo' alcanza con que la combinación sea distinta.
+ * - Las menciones se suman entre todos los comentarios del usuario, sin repetir personas:
+ *   con mínimo 2, dos comentarios que etiquetan a una persona distinta cada uno suman una chance.
+ * - Si se permiten varias participaciones, cada vez que el usuario vuelve a juntar el mínimo de
+ *   personas nuevas suma otra chance (como máximo una por comentario). Con mínimo 0, cada
+ *   comentario extra suma una chance si etiqueta al menos a una persona nueva.
  *
  * Devuelve { entries, rejected, skipped, users } donde cada entrada es una "chance".
  */
@@ -125,8 +125,8 @@ export function buildEntries(comments, draw, config, owner = '') {
   let skipped = 0;
 
   const seenTexts = new Map(); // usuario -> Set de textos
-  const usedMentions = new Map(); // usuario -> Set de menciones ya usadas
-  const usedCombos = new Map(); // usuario -> Set de combinaciones ya usadas
+  const usedMentions = new Map(); // usuario -> Set de personas ya etiquetadas
+  const pending = new Map(); // usuario -> { comments, mentions } que todavía no suman una chance
   const entryCount = new Map(); // usuario -> cantidad de participaciones
 
   const reject = (comment, reason) => rejected.push({ comment, reason });
@@ -162,67 +162,58 @@ export function buildEntries(comments, draw, config, owner = '') {
     }
     texts.add(text);
 
-    let mentions = extractMentions(comment.text);
-    if (config.excludeSelfMention) mentions = mentions.filter((m) => m !== user);
-    if (ownerName) mentions = mentions.filter((m) => m !== ownerName);
-
     const previous = entryCount.get(user) ?? 0;
-
     if (previous > 0 && !config.multipleEntries) {
       reject(comment, 'El usuario ya participa con otro comentario');
       continue;
     }
 
-    let counted = mentions;
-    if (previous > 0) {
-      if (config.mentionUniqueness === 'combo') {
-        const combo = [...mentions].sort().join(' ');
-        if (mentions.length === 0 || usedCombos.get(user)?.has(combo)) {
-          reject(comment, 'Etiqueta a las mismas personas que otro comentario');
-          continue;
-        }
-      } else {
-        const used = usedMentions.get(user) ?? new Set();
-        counted = mentions.filter((m) => !used.has(m));
-        if (counted.length === 0 || counted.length < minMentions) {
-          reject(
-            comment,
-            counted.length === 0
-              ? 'No etiqueta a nadie nuevo'
-              : `Sólo etiqueta ${counted.length} persona(s) nueva(s) (mínimo ${minMentions})`,
-          );
-          continue;
-        }
-      }
-    }
+    let mentions = extractMentions(comment.text);
+    if (config.excludeSelfMention) mentions = mentions.filter((m) => m !== user);
+    if (ownerName) mentions = mentions.filter((m) => m !== ownerName);
 
-    if (counted.length < minMentions) {
-      reject(
-        comment,
-        mentions.length === 0
-          ? `No etiqueta a nadie (mínimo ${minMentions})`
-          : `Etiqueta ${mentions.length} persona(s) (mínimo ${minMentions})`,
-      );
+    const used = usedMentions.get(user) ?? new Set();
+    usedMentions.set(user, used);
+    const fresh = mentions.filter((m) => !used.has(m));
+    const need = previous > 0 ? Math.max(1, minMentions) : minMentions;
+
+    if (need > 0 && fresh.length === 0) {
+      reject(comment, mentions.length ? 'No etiqueta a nadie nuevo' : 'No etiqueta a nadie');
       continue;
     }
 
-    const used = usedMentions.get(user) ?? new Set();
-    counted.forEach((m) => used.add(m));
-    usedMentions.set(user, used);
-    const combos = usedCombos.get(user) ?? new Set();
-    combos.add([...mentions].sort().join(' '));
-    usedCombos.set(user, combos);
-    entryCount.set(user, previous + 1);
+    fresh.forEach((m) => used.add(m));
+    const acc = pending.get(user) ?? { comments: [], mentions: [] };
+    acc.comments.push(comment);
+    acc.mentions.push(...fresh);
 
+    if (acc.mentions.length < need) {
+      pending.set(user, acc);
+      continue;
+    }
+
+    pending.delete(user);
+    entryCount.set(user, previous + 1);
     entries.push({
       username: user,
       displayUsername: comment.username,
+      userId: comment.userId ?? '',
       profilePic: comment.profilePic ?? '',
       commentId: comment.id,
       text: comment.text,
+      comments: acc.comments.map((c) => c.text),
       createdAt: comment.createdAt,
-      mentions: counted,
+      mentions: acc.mentions,
     });
+  }
+
+  // Comentarios que no llegaron a juntar el mínimo de personas etiquetadas.
+  for (const [user, acc] of pending) {
+    const total = acc.mentions.length;
+    const reason = entryCount.get(user)
+      ? `Sólo suma ${total} persona(s) nueva(s) más (mínimo ${minMentions})`
+      : `Etiqueta ${total} persona(s) en total (mínimo ${minMentions})`;
+    acc.comments.forEach((c) => reject(c, reason));
   }
 
   return { entries, rejected, skipped, users: entryCount };
