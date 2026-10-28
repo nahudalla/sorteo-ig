@@ -209,7 +209,7 @@ code { background: #f1ecf8; padding: 1px 6px; border-radius: 6px; font-size: .9e
 .result-block h3 { margin: 0 0 4px; display: flex; gap: 10px; align-items: center; }
 .result-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
 .result-row:first-of-type { border-top: 0; }
-.result-row .role { margin-left: auto; font-size: .75rem; font-weight: 700; color: var(--purple); text-transform: uppercase; }
+.result-row .role { white-space: nowrap; margin-left: auto; font-size: .75rem; font-weight: 700; color: var(--purple); text-transform: uppercase; }
 .announce { width: 100%; min-height: 160px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: .88rem; resize: vertical; }
 
 /* ---------- Tables / modal ---------- */

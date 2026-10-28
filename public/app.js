@@ -600,7 +600,7 @@ function viewResults() {
       ${state.drawStates.map((ds) => `
         <div class="card result-block">
           <h3>🏆 ${esc(ds.draw.prize)}</h3>
-          <p class="sub">${ds.draw.keywords.length ? `Palabra “${esc(ds.draw.keywords.join(' / '))}” · ` : ''}${fmt(ds.result.users.size)} participantes · ${fmt(ds.result.entries.length)} chances</p>
+          ${ds.draw.keywords.length ? `<p class="sub">Palabra “${esc(ds.draw.keywords.join(' / '))}”</p>` : ''}
           ${validPicks(ds).length ? validPicks(ds).map((p) => `
             <div class="result-row">${avatar(p.entry.username, p.entry.profilePic)}
               <div style="min-width:0"><b>@${esc(p.entry.displayUsername || p.entry.username)}</b><div class="muted" style="font-size:.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.entry.text)}</div></div>
