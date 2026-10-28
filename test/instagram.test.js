@@ -22,6 +22,10 @@ before(async () => {
     };
     if (!/sessionid=(ok|limitada)/.test(req.headers.cookie ?? '')) return json(401, { status: 'fail', message: 'login_required' });
     if (url.pathname === '/api/v1/media/99/comments/') {
+      if (url.searchParams.has('can_support_threading')) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        return res.end('<html><title>Instagram</title></html>');
+      }
       if (!throttled) {
         throttled = true;
         return json(429, { status: 'fail' });
@@ -70,6 +74,10 @@ test('info del post, likes y seguidores', async () => {
   assert.deepEqual((await client().likers('99')).usernames, ['ana']);
   assert.equal(await client().follows('ana', 'tienda'), true);
   assert.equal(await client().follows('beto', 'tienda'), false);
+});
+
+test('una respuesta no JSON explica qué devolvió Instagram', async () => {
+  await assert.rejects(client().request('/api/v1/media/99/comments/?can_support_threading=true'), /HTTP 200, text\/html\): Instagram/);
 });
 
 test('sesión inválida da un error claro', async () => {
