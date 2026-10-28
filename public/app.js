@@ -110,6 +110,8 @@ const state = {
   modal: null,
 };
 
+const accountName = (user) => (user.username ? `@${user.username}` : 'Cuenta conectada');
+
 const owner = () => state.post?.owner?.username ?? '';
 
 function computeDraws() {
@@ -145,7 +147,7 @@ function renderSteps() {
 function renderAccount() {
   const { connected, user } = state.session;
   $('#account').innerHTML = connected
-    ? `<button class="account-chip" data-action="open-session">${avatar(user.username, user.profilePic)}<span>@${esc(user.username)}</span><span class="status"></span></button>`
+    ? `<button class="account-chip" data-action="open-session">${avatar(user.username, user.profilePic)}<span>${esc(accountName(user))}</span><span class="status"></span></button>`
     : `<button class="account-btn" data-action="open-session">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/></svg>
         Conectar Instagram</button>`;
@@ -666,7 +668,8 @@ function modalSession() {
   if (connected) {
     return `<h2>Cuenta conectada</h2>
       <div class="pick-top" style="margin:16px 0">${avatar(user.username, user.profilePic, 'lg')}
-        <div><div class="pick-user">@${esc(user.username)}</div><div class="muted">${esc(user.fullName)}</div></div></div>
+        <div><div class="pick-user">${esc(accountName(user))}</div><div class="muted">${esc(user.fullName)}</div></div></div>
+      ${user.verified === false ? '<div class="warning">Instagram no dejó verificar la cuenta en este momento (puede estar limitando consultas). La sesión quedó guardada y se va a validar al cargar el post.</div>' : ''}
       <p class="hint">La sesión se guarda sólo en tu compu, en el archivo <code>.ig-session.json</code> del proyecto.</p>
       <div class="actions"><button class="btn btn-ghost" data-action="logout">Desconectar</button><button class="btn btn-dark" data-action="close-modal">Listo</button></div>`;
   }
@@ -859,11 +862,14 @@ async function handleImport(form) {
 }
 
 async function handleSession(form) {
+  const button = form.querySelector('button[type=submit]');
+  button.disabled = true;
+  button.textContent = 'Conectando con Instagram…';
   try {
     state.session = await api('/api/session', { method: 'POST', body: { cookie: form.cookie.value } });
     closeModal();
     renderAccount();
-    toast(`Conectado como @${state.session.user.username}`);
+    toast(state.session.user.username ? `Conectado como @${state.session.user.username}` : 'Sesión guardada (sin verificar todavía)');
     if (state.pendingUrl && state.view === 'home') startFromUrl(state.pendingUrl);
   } catch (err) {
     state.modal.error = err.message;

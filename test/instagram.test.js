@@ -20,7 +20,7 @@ before(async () => {
       res.writeHead(status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(data));
     };
-    if (!req.headers.cookie?.includes('sessionid=ok')) return json(401, { status: 'fail', message: 'login_required' });
+    if (!/sessionid=(ok|limitada)/.test(req.headers.cookie ?? '')) return json(401, { status: 'fail', message: 'login_required' });
     if (url.pathname === '/api/v1/media/99/comments/') {
       if (!throttled) {
         throttled = true;
@@ -35,6 +35,10 @@ before(async () => {
     }
     if (url.pathname === '/api/v1/media/99/info/') {
       return json(200, { items: [{ pk: 99, code: 'X', user: { pk: 1, username: 'tienda' }, comment_count: 5, like_count: 3 }] });
+    }
+    if (url.pathname === '/api/v1/accounts/edit/web_form_data/') {
+      if (req.headers.cookie.includes('limitada')) return json(429, { status: 'fail', message: 'Please wait a few minutes' });
+      return json(200, { form_data: { username: 'tienda', first_name: 'Tienda' } });
     }
     if (url.pathname === '/api/v1/media/99/likers/') return json(200, { users: [{ username: 'Ana' }], user_count: 1 });
     if (url.pathname === '/api/v1/users/web_profile_info/') return json(200, { data: { user: { id: '1' } } });
@@ -70,4 +74,11 @@ test('info del post, likes y seguidores', async () => {
 
 test('sesión inválida da un error claro', async () => {
   await assert.rejects(client('mala').mediaInfo('99'), /Sesión inválida/);
+});
+
+test('conectar la cuenta: verifica, o la acepta sin verificar si Instagram limita', async () => {
+  assert.equal((await client().currentUser()).username, 'tienda');
+  const limited = await client('limitada').currentUser();
+  assert.equal(limited.verified, false);
+  await assert.rejects(client('mala').currentUser(), /Sesión inválida/);
 });

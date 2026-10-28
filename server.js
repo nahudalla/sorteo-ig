@@ -1,5 +1,7 @@
 // Servidor local: sirve la página y hace de intermediario con Instagram usando tu sesión.
 import { createServer } from 'node:http';
+import { setDefaultResultOrder } from 'node:dns';
+import * as net from 'node:net';
 import { readFile, writeFile, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join, normalize, dirname } from 'node:path';
@@ -11,6 +13,10 @@ import {
   shortcodeFromUrl,
   shortcodeToMediaId,
 } from './lib/instagram.js';
+
+// Evita que las conexiones queden colgadas en redes con IPv6 roto.
+setDefaultResultOrder('ipv4first');
+net.setDefaultAutoSelectFamily?.(true);
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -44,7 +50,7 @@ async function loadSession() {
   try {
     const client = new InstagramClient(cookies);
     session = { cookies, user: await client.currentUser() };
-    console.log(`  Sesión de Instagram: @${session.user.username}`);
+    console.log(`  Sesión de Instagram: ${session.user.username ? `@${session.user.username}` : `cuenta ${session.user.id} (sin verificar)`}`);
   } catch (err) {
     session = { cookies, user: null };
     console.log(`  No se pudo validar la sesión guardada: ${err.message}`);
@@ -79,6 +85,7 @@ const routes = {
   'POST /api/session': async (body) => {
     const cookies = parseCookieInput(body.cookie);
     if (!cookies) throw new InstagramError('No encontré la cookie "sessionid" en lo que pegaste.', 400);
+    console.log(`Validando sesión de Instagram (usuario ${cookies.ds_user_id ?? 'desconocido'})…`);
     const user = await new InstagramClient(cookies).currentUser();
     session = { cookies, user };
     await writeFile(SESSION_FILE, JSON.stringify({ cookies }, null, 2), { mode: 0o600 });
@@ -179,7 +186,7 @@ const server = createServer(async (req, res) => {
   }
 });
 
-await loadSession();
 server.listen(PORT, HOST, () => {
   console.log(`\n  Sorteo IG corriendo en http://localhost:${PORT}\n`);
+  loadSession();
 });
