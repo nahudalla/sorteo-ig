@@ -12,7 +12,7 @@ npm start
 
 Abrí http://localhost:3000.
 
-1. **Conectá tu cuenta de Instagram** (botón arriba a la derecha). Para leer comentarios, likes y seguidores, la página usa la sesión de tu cuenta: copiá el valor de la cookie `sessionid` desde las herramientas de desarrollador del navegador, con instagram.com abierto y la sesión iniciada (Application → Cookies). La sesión queda guardada sólo en `.ig-session.json`, que está en `.gitignore`. También podés pasarla con la variable de entorno `IG_SESSIONID` o `IG_COOKIE`.
+1. **Conectá tu cuenta de Instagram** (botón arriba a la derecha). Para leer comentarios, likes y seguidores, la página usa la sesión de tu cuenta. Con instagram.com abierto y la sesión iniciada, abrí las herramientas de desarrollador, elegí en la pestaña Network cualquier request a instagram.com y copiá el header `Cookie` completo. Con la cookie `sessionid` sola también funciona, pero la verificación de likes necesita además el `csrftoken`. La sesión queda guardada sólo en `.ig-session.json`, que está en `.gitignore`. También podés pasarla con la variable de entorno `IG_COOKIE` o `IG_SESSIONID`.
 2. **Pegá la URL del post** (`/p/…` o `/reel/…`). Los comentarios se traen despacio a propósito, para que Instagram no limite la cuenta.
 3. **Configurá las reglas** y mirá en vivo cuántos participantes quedan en cada sorteo.
 4. **Sorteá.** Al que sale sorteado se le verifica que siga la cuenta y que haya dado like (si lo pediste). Si no cumple, queda descalificado y se sortea otro.

@@ -678,7 +678,7 @@ function modalSession() {
       <li>Abrí <a href="https://www.instagram.com" target="_blank" rel="noopener">instagram.com</a> en tu navegador con la sesión iniciada.</li>
       <li>Abrí las herramientas de desarrollador (<code>F12</code> o <code>Cmd+Opt+I</code>).</li>
       <li>Andá a <b>Application</b> (Chrome) o <b>Almacenamiento</b> (Firefox) → <b>Cookies</b> → <code>https://www.instagram.com</code>.</li>
-      <li>Copiá el valor de la cookie <code>sessionid</code> y pegalo acá abajo.<br><span class="muted">También podés pegar el header <code>Cookie</code> completo de cualquier request en la pestaña Network.</span></li>
+      <li><b>Recomendado:</b> en la pestaña <b>Network</b>, elegí cualquier request a <code>instagram.com</code> y copiá el valor del header <code>Cookie</code> completo (incluye <code>sessionid</code> y <code>csrftoken</code>).<br><span class="muted">También alcanza con el valor de la cookie <code>sessionid</code> (Application → Cookies), pero algunas verificaciones, como los likes, pueden necesitar el <code>csrftoken</code>.</span></li>
     </ol>
     <div class="warning">🔒 La sesión da acceso a tu cuenta: no la compartas. Se guarda sólo en tu compu. Instagram puede limitar cuentas que hacen muchas consultas; la página va despacio para evitarlo.</div>
     <form data-form="session">

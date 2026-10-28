@@ -61,6 +61,13 @@ before(async () => {
       if (req.headers.cookie.includes('limitada')) return json(429, { status: 'fail', message: 'Please wait a few minutes' });
       return json(200, { form_data: { username: 'tienda', first_name: 'Tienda' } });
     }
+    // Likers exige el token CSRF (cookie y header iguales); el 403 entrega uno en Set-Cookie.
+    if (url.pathname === '/api/v1/media/97/likers/' || url.pathname === '/api/v1/media/96/likers/') {
+      const token = req.headers.cookie.match(/csrftoken=([^;]+)/)?.[1];
+      if (token && token === req.headers['x-csrftoken']) return json(200, { users: [{ username: 'ana' }], user_count: 1 });
+      if (url.pathname.includes('/97/')) res.setHeader('Set-Cookie', 'csrftoken=tok123; Path=/; Secure');
+      return json(403, { message: 'CSRF token missing or incorrect', status: 'fail' });
+    }
     // Como pasa hoy: likers da 403 en la web y web_profile_info da 429.
     const web = req.headers['sec-fetch-site'] === 'same-origin';
     if (url.pathname === '/api/v1/media/99/likers/') {
@@ -105,6 +112,15 @@ test('info del post, likes y seguidores', async () => {
 test('likes: si la web da 403 usa i.instagram.com; si ambos fallan, error (confirmación manual)', async () => {
   assert.deepEqual(await client().likers('99'), { usernames: ['ana'], total: 1 });
   await assert.rejects(client().likers('98'), /403/);
+});
+
+test('likes: usa el csrftoken que entrega Instagram y avisa si no hay', async () => {
+  const ig = client();
+  const saved = [];
+  ig.onCookiesChange = (c) => saved.push(c.csrftoken);
+  assert.deepEqual((await ig.likers('97')).usernames, ['ana']);
+  assert.deepEqual(saved, ['tok123']);
+  await assert.rejects(client().likers('96'), /Cookie completo/);
 });
 
 test('seguir: relación directa si es la cuenta conectada, si no lista de seguidores', async () => {
