@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SorteoGram · Sorteos de Instagram</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="#" data-action="home">
+        <span class="brand-logo"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5.5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.3" cy="6.7" r="1.1" class="dot"/></svg></span>
+        <span>Sorteo<b>Gram</b></span>
+      </a>
+      <nav class="steps" id="steps"></nav>
+      <div id="account"></div>
+    </div>
+  </header>
+
+  <main id="app"></main>
+
+  <footer class="footer">
+    Hecho para correr en tu compu · Los ganadores se eligen con <code>crypto.getRandomValues</code>
+  </footer>
+
+  <div class="modal" id="modal" hidden>
+    <div class="modal-backdrop" data-action="close-modal"></div>
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <button class="modal-close" data-action="close-modal" aria-label="Cerrar">×</button>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <canvas id="confetti"></canvas>
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
